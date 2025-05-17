@@ -1,3 +1,5 @@
 #pragma once
 
-void init_led(void);
+#include <stdint.h>
+
+void led_matrix_init(void *args);

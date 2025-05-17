@@ -1,0 +1,13 @@
+menu "Miniatur Town"
+    config WLED_DIN_PIN
+        int "WLED Data In Pin"
+        default 14
+        help
+            The number of the WLED data in pin.
+
+    config WLED_LED_COUNT
+        int "WLED LED counter"
+        default 64
+        help
+            The number of the WLED LEDs.
+endmenu
