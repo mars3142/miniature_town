@@ -1,0 +1,32 @@
+name: Build the ESP-IDF Project
+
+on:
+  push:
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "0 5 * * 3"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        idf_ver: [release-v5.4, latest]
+        idf_target: [esp32s3, esp32c3]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: ESP-IDF build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ matrix.idf_ver }}
+          target: ${{ matrix.idf_target }}
