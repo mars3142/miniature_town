@@ -7,5 +7,5 @@
 void app_main(void)
 {
     xTaskCreatePinnedToCore(led_matrix_init, "led_matrix", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL, 1);
-    xTaskCreatePinnedToCore(ble_init, "remote_control", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL, 1);
+    ble_init(NULL);
 }
