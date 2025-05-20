@@ -1,147 +1,195 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "esp_event.h"
 #include "esp_log.h"
-#include "nvs_flash.h"
-
-// NimBLE-Header
 #include "esp_nimble_hci.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
-#include "host/util/util.h"
+#include "host/ble_sm.h"
 #include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
+#include "sdkconfig.h"
 
-// Tag für Logging
 static const char *TAG = "remote_control";
-
-#define DEVICE_NAME "Miniature Town"
+static const char *DEVICE_NAME = "Miniature Town";
 
 uint8_t ble_addr_type;
 
-/**
- * Konfiguriert und startet das BLE-Advertising.
- */
-static void ble_app_advertise(void)
+void ble_app_advertise(void);
+
+// Write data to ESP32 defined as server
+static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    struct ble_gap_adv_params adv_params;
+    // printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+
+    char *data = (char *)ctxt->om->om_data;
+    printf("%d\n", strcmp(data, (char *)"LIGHT ON") == 0);
+    if (strcmp(data, (char *)"LIGHT ON\0") == 0)
+    {
+        printf("LIGHT ON\n");
+    }
+    else if (strcmp(data, (char *)"LIGHT OFF\0") == 0)
+    {
+        printf("LIGHT OFF\n");
+    }
+    else if (strcmp(data, (char *)"FAN ON\0") == 0)
+    {
+        printf("FAN ON\n");
+    }
+    else if (strcmp(data, (char *)"FAN OFF\0") == 0)
+    {
+        printf("FAN OFF\n");
+    }
+    else
+    {
+        printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+    }
+
+    return 0;
+}
+
+// Read data from ESP32 defined as server
+static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char *data = "Data from the server";
+    os_mbuf_append(ctxt->om, data, strlen(data));
+    return 0;
+}
+
+static int device_name_read(uint16_t onn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    os_mbuf_append(ctxt->om, DEVICE_NAME, strlen(DEVICE_NAME));
+    return 0;
+}
+
+static int model_number_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char *model_number = "Model Number";
+    os_mbuf_append(ctxt->om, model_number, strlen(model_number));
+    return 0;
+}
+static int manufacturer_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char *manufacturer = "mars3142";
+    os_mbuf_append(ctxt->om, manufacturer, strlen(manufacturer));
+    return 0;
+}
+
+// Array of pointers to other service definitions
+static const struct ble_gatt_svc_def gatt_svcs[] = {
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = BLE_UUID16_DECLARE(0x180A),
+        .characteristics = (struct ble_gatt_chr_def[]){
+            {.uuid = BLE_UUID16_DECLARE(0x2A00), .flags = BLE_GATT_CHR_F_READ, .access_cb = device_name_read},
+            {.uuid = BLE_UUID16_DECLARE(0x2A24), .flags = BLE_GATT_CHR_F_READ, .access_cb = model_number_read},
+            {.uuid = BLE_UUID16_DECLARE(0x2A29), .flags = BLE_GATT_CHR_F_READ, .access_cb = manufacturer_read},
+            {0}},
+    },
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = BLE_UUID16_DECLARE(0x180), .characteristics = (struct ble_gatt_chr_def[]){{.uuid = BLE_UUID16_DECLARE(0xFEF4), .flags = BLE_GATT_CHR_F_READ, .access_cb = device_read}, {.uuid = BLE_UUID16_DECLARE(0xDEAD), .flags = BLE_GATT_CHR_F_WRITE, .access_cb = device_write}, {0}}},
+    {0}};
+
+// BLE event handling
+static int ble_gap_event(struct ble_gap_event *event, void *arg)
+{
+    switch (event->type)
+    {
+    case BLE_GAP_EVENT_CONNECT:
+        ESP_LOGI(TAG, "BLE GAP EVENT CONNECT %s", event->connect.status == 0 ? "OK!" : "FAILED!");
+        if (event->connect.status == 0)
+        {
+            // Start security pairing without disconnecting
+            int ret = ble_gap_security_initiate(event->connect.conn_handle);
+            ESP_LOGI(TAG, "BLE GAP SECURITY INITIATE %s", ret == 0 ? "OK!" : "FAILED!");
+        }
+        else
+        {
+            // Re-advertise if connection failed
+            ble_app_advertise();
+        }
+        break;
+
+    case BLE_GAP_EVENT_DISCONNECT:
+        ESP_LOGI(TAG, "BLE GAP EVENT DISCONNECTED");
+        // Re-advertise after disconnection
+        ble_app_advertise();
+        break;
+
+    case BLE_GAP_EVENT_ADV_COMPLETE:
+        ESP_LOGI(TAG, "BLE GAP EVENT ADV COMPLETE");
+        // Re-advertise to continue accepting new clients
+        ble_app_advertise();
+        break;
+
+    case BLE_GAP_EVENT_ENC_CHANGE:
+        if (event->enc_change.status == 0)
+        {
+            ESP_LOGI(TAG, "Encryption enabled for connection");
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to enable encryption, status=%d", event->enc_change.status);
+        }
+        break;
+
+    default:
+        break;
+    }
+    return 0;
+}
+
+// Define the BLE connection
+void ble_app_advertise(void)
+{
+    // GAP - device name definition
     struct ble_hs_adv_fields fields;
-    int rc;
-
-    // Fülle die Advertising-Felder
+    const char *device_name;
     memset(&fields, 0, sizeof(fields));
+    device_name = ble_svc_gap_device_name(); // Read the BLE device name
+    fields.name = (uint8_t *)device_name;
+    fields.name_len = strlen(device_name);
+    fields.name_is_complete = 1;
+    ble_gap_adv_set_fields(&fields);
 
-    // Flags:
-    // - BLE_HS_ADV_F_DISC_GEN: General discoverable mode
-    // - BLE_HS_ADV_F_BREDR_UNSUP: BR/EDR (Classic Bluetooth) nicht unterstützt
-    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-
-    // Device Name
-    // Stelle sicher, dass der Name + Overhead in das Advertising-Paket passt.
-    // Bei Bedarf muss der Name gekürzt werden oder in Scan Response platziert werden.
-    fields.name = (uint8_t *)DEVICE_NAME;
-    fields.name_len = strlen(DEVICE_NAME);
-    fields.name_is_complete = 1; // Der Name ist vollständig im Advertising-Paket
-
-    // Setze die Advertising-Daten
-    rc = ble_gap_adv_set_fields(&fields);
-    if (rc != 0)
-    {
-        ESP_LOGE(TAG, "Fehler beim Setzen der Advertising-Daten; rc=%d", rc);
-        return;
-    }
-
-    // Konfiguriere die Advertising-Parameter
+    // GAP - device connectivity definition
+    struct ble_gap_adv_params adv_params;
     memset(&adv_params, 0, sizeof(adv_params));
-    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // Undirected connectable
-    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // General discoverable
-
-    // Starte das Advertising
-    // Parameter:
-    // - own_addr_type: Typ der eigenen Adresse (wird von ble_hs_id_infer_auto gesetzt)
-    // - peer_addr: NULL für undirected advertising
-    // - duration_ms: BLE_HS_FOREVER für kontinuierliches Advertising
-    // - adv_params: Die oben konfigurierten Parameter
-    // - cb: Callback-Funktion bei GAP-Events (z.B. Verbindung, Trennung)
-    // - cb_arg: Argument für die Callback-Funktion
-    rc = ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, NULL, NULL);
-    if (rc != 0)
-    {
-        ESP_LOGE(TAG, "Fehler beim Starten des Advertising; rc=%d", rc);
-        return;
-    }
-    ESP_LOGI(TAG, "Advertising gestartet. Gerät sollte sichtbar sein als '%s'", DEVICE_NAME);
+    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // connectable or non-connectable
+    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // discoverable or non-discoverable
+    ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
 }
 
-/**
- * Callback-Funktion, die aufgerufen wird, wenn der BLE-Host-Stack synchronisiert (bereit) ist.
- */
-static void ble_app_on_sync(void)
+// The application
+void ble_app_on_sync(void)
 {
-    int rc;
-
-    // Setze eine zufällige statische Adresse oder eine öffentliche Adresse
-    // Hier verwenden wir eine zufällige statische Adresse als Beispiel
-    rc = ble_hs_id_infer_auto(0, &ble_addr_type);
-    if (rc != 0)
-    {
-        ESP_LOGE(TAG, "Fehler beim Bestimmen der Adresse; rc=%d", rc);
-        return;
-    }
-
-    // Die Adresse wurde gesetzt, starte Advertising
-    ble_app_advertise();
+    ble_hs_id_infer_auto(0, &ble_addr_type); // Determines the best address type automatically
+    ble_app_advertise();                     // Define the BLE connection
 }
 
-/**
- * Host-Task für NimBLE.
- */
-void ble_host_task(void *param)
+// The infinite task
+void host_task(void *param)
 {
-    ESP_LOGI(TAG, "BLE Host Task gestartet");
-    // Dieser Aufruf blockiert, bis nimble_port_stop() aufgerufen wird
-    nimble_port_run();
-
-    nimble_port_freertos_deinit();
+    nimble_port_run(); // This function will return only when nimble_port_stop() is executed
 }
 
 void ble_init(void *args)
 {
-    int rc;
+    nimble_port_init();                       // 3 - Initialize the host stack
+    ble_svc_gap_device_name_set(DEVICE_NAME); // 4 - Initialize NimBLE configuration - server name
+    ble_svc_gap_init();                       // 4 - Initialize NimBLE configuration - gap service
+    ble_svc_gatt_init();                      // 4 - Initialize NimBLE configuration - gatt service
+    ble_gatts_count_cfg(gatt_svcs);           // 4 - Initialize NimBLE configuration - config gatt services
+    ble_gatts_add_svcs(gatt_svcs);            // 4 - Initialize NimBLE configuration - queues gatt services.
+    ble_hs_cfg.sync_cb = ble_app_on_sync;     // 5 - Initialize application
 
-    // Initialisiere NVS (Non-Volatile Storage)
-    // Dies ist für BLE erforderlich, um Controller-Konfigurationen zu speichern
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+    // Configure security settings
+    ble_hs_cfg.sm_bonding = 1;                             // Enable bonding
+    ble_hs_cfg.sm_sc = 0;                                  // Enable Secure Connections (LE SC)
+    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC; // Encryption key distribution
+    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
 
-    // Initialisiere den NimBLE-Port (FreeRTOS spezifisch)
-    nimble_port_init();
-
-    // Konfiguriere den BLE-Host-Stack:
-    // - Setze den Callback für "on_sync" (wenn der Stack bereit ist)
-    // - Setze den Callback für "on_reset" (wenn der Controller zurückgesetzt wird)
-    ble_hs_cfg.sync_cb = ble_app_on_sync;
-    ble_hs_cfg.reset_cb = NULL; // Hier nicht explizit benötigt für einfaches Advertising
-
-    // Optional: Setze den Gerätenamen direkt im GAP Service.
-    // Dies ist eine andere Stelle als das Advertising-Paket, aber gute Praxis.
-    rc = ble_svc_gap_device_name_set(DEVICE_NAME);
-    assert(rc == 0);
-
-    // Initialisiere das NimBLE HCI Layer
-    // ESP_ERROR_CHECK(esp_nimble_hci_and_controller_init()); // Für ESP32, ESP32-C3, ESP32-S3 (kombinierter Host & Controller)
-    // Für ESP32-C2, ESP32-C6, ESP32-H2, die VHCI verwenden, wird eine andere Initialisierung benötigt.
-    // Aber für typische ESP32 ist dies korrekt.
-
-    // Starte den NimBLE Host Task in einem eigenen Thread.
-    // Die Priorität und Stack-Größe können angepasst werden.
-    // NIMBLE_STACK_SIZE ist in nimble_port_freertos.h definiert
-    nimble_port_freertos_init(ble_host_task);
-
-    ESP_LOGI(TAG, "BLE App Main abgeschlossen. BLE Host Task läuft.");
+    nimble_port_freertos_init(host_task); // Run the host task
 }
