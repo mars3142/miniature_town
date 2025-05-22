@@ -14,93 +14,27 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "sdkconfig.h"
 
+#include "include/device_service.h"
+#include "include/led_service.h"
+
 static const char *TAG = "remote_control";
-static const char *DEVICE_NAME = "Miniature Town";
 
 uint8_t ble_addr_type;
 
 void ble_app_advertise(void);
-
-// Write data to ESP32 defined as server
-static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
-    const char *received_payload = (const char *)ctxt->om->om_data;
-    uint16_t payload_len = ctxt->om->om_len;
-
-    // Define command strings
-    const char CMD_LIGHT_ON[] = "LIGHT ON";
-    const char CMD_LIGHT_OFF[] = "LIGHT OFF";
-    const char CMD_FAN_ON[] = "FAN ON";
-    const char CMD_FAN_OFF[] = "FAN OFF";
-
-    if (payload_len == (sizeof(CMD_LIGHT_ON) - 1) &&
-        strncmp(received_payload, CMD_LIGHT_ON, payload_len) == 0)
-    {
-        ESP_LOGI(TAG, "LIGHT ON");
-        // TODO: Implement action for LIGHT ON
-    }
-    else if (payload_len == (sizeof(CMD_LIGHT_OFF) - 1) &&
-             strncmp(received_payload, CMD_LIGHT_OFF, payload_len) == 0)
-    {
-        ESP_LOGI(TAG, "LIGHT OFF");
-        // TODO: Implement action for LIGHT OFF
-    }
-    else if (payload_len == (sizeof(CMD_FAN_ON) - 1) &&
-             strncmp(received_payload, CMD_FAN_ON, payload_len) == 0)
-    {
-        ESP_LOGI(TAG, "FAN ON");
-        // TODO: Implement action for FAN ON
-    }
-    else if (payload_len == (sizeof(CMD_FAN_OFF) - 1) &&
-             strncmp(received_payload, CMD_FAN_OFF, payload_len) == 0)
-    {
-        ESP_LOGI(TAG, "FAN OFF");
-        // TODO: Implement action for FAN OFF
-    }
-    else
-    {
-        char temp_buffer[payload_len + 1];
-        memcpy(temp_buffer, received_payload, payload_len);
-        temp_buffer[payload_len] = '\0';
-
-        ESP_LOGI(TAG, "Unknown command from client: %s", temp_buffer);
-    }
-
-    return 0;
-}
-
-// Read data from ESP32 defined as server
-static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
-    char *data = "Data from the server";
-    os_mbuf_append(ctxt->om, data, strlen(data));
-    return 0;
-}
-
-static int model_number_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
-    char *model_number = "Miniature Town v1";
-    os_mbuf_append(ctxt->om, model_number, strlen(model_number));
-    return 0;
-}
-static int manufacturer_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
-    char *manufacturer = "mars3142";
-    os_mbuf_append(ctxt->om, manufacturer, strlen(manufacturer));
-    return 0;
-}
 
 // Array of pointers to other service definitions
 static const struct ble_gatt_svc_def gatt_svcs[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x180A),
-        .characteristics = (struct ble_gatt_chr_def[]){
-            {.uuid = BLE_UUID16_DECLARE(0x2A24), .flags = BLE_GATT_CHR_F_READ, .access_cb = model_number_read},
-            {.uuid = BLE_UUID16_DECLARE(0x2A29), .flags = BLE_GATT_CHR_F_READ, .access_cb = manufacturer_read},
-            {0}},
+        .characteristics = (struct ble_gatt_chr_def[]){{.uuid = BLE_UUID16_DECLARE(0x2A24), .flags = BLE_GATT_CHR_F_READ, .access_cb = ds_model_number_read}, {.uuid = BLE_UUID16_DECLARE(0x2A29), .flags = BLE_GATT_CHR_F_READ, .access_cb = ds_manufacturer_read}, {0}},
     },
-    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = BLE_UUID16_DECLARE(0x180), .characteristics = (struct ble_gatt_chr_def[]){{.uuid = BLE_UUID16_DECLARE(0xFEF4), .flags = BLE_GATT_CHR_F_READ, .access_cb = device_read}, {.uuid = BLE_UUID16_DECLARE(0xDEAD), .flags = BLE_GATT_CHR_F_WRITE, .access_cb = device_write}, {0}}},
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = BLE_UUID16_DECLARE(0x180),
+        .characteristics = (struct ble_gatt_chr_def[]){{.uuid = BLE_UUID16_DECLARE(0xFEF4), .flags = BLE_GATT_CHR_F_READ, .access_cb = ls_read}, {.uuid = BLE_UUID16_DECLARE(0xDEAD), .flags = BLE_GATT_CHR_F_WRITE, .access_cb = ls_write}, {0}},
+    },
     {0}};
 
 // BLE event handling
@@ -188,18 +122,18 @@ void host_task(void *param)
 
 void ble_init(void *args)
 {
-    nimble_port_init();                       // 3 - Initialize the host stack
-    ble_svc_gap_device_name_set(DEVICE_NAME); // 4 - Initialize NimBLE configuration - server name
-    ble_svc_gap_init();                       // 4 - Initialize NimBLE configuration - gap service
-    ble_svc_gatt_init();                      // 4 - Initialize NimBLE configuration - gatt service
-    ble_gatts_count_cfg(gatt_svcs);           // 4 - Initialize NimBLE configuration - config gatt services
-    ble_gatts_add_svcs(gatt_svcs);            // 4 - Initialize NimBLE configuration - queues gatt services.
-    ble_hs_cfg.sync_cb = ble_app_on_sync;     // 5 - Initialize application
+    nimble_port_init();
+    ble_svc_gap_device_name_set("Miniature Town");
+    ble_svc_gap_init();
+    ble_svc_gatt_init();
+    ble_gatts_count_cfg(gatt_svcs);
+    ble_gatts_add_svcs(gatt_svcs);
+    ble_hs_cfg.sync_cb = ble_app_on_sync;
 
     // Configure security settings
-    ble_hs_cfg.sm_bonding = 1;                             // Enable bonding
-    ble_hs_cfg.sm_sc = 0;                                  // Enable Secure Connections (LE SC)
-    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC; // Encryption key distribution
+    ble_hs_cfg.sm_bonding = 1;
+    ble_hs_cfg.sm_sc = 0;
+    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
 
     nimble_port_freertos_init(host_task); // Run the host task
