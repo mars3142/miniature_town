@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -23,29 +24,46 @@ void ble_app_advertise(void);
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    // printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+    const char *received_payload = (const char *)ctxt->om->om_data;
+    uint16_t payload_len = ctxt->om->om_len;
 
-    char *data = (char *)ctxt->om->om_data;
-    printf("%d\n", strcmp(data, (char *)"LIGHT ON") == 0);
-    if (strcmp(data, (char *)"LIGHT ON\0") == 0)
+    // Define command strings
+    const char CMD_LIGHT_ON[] = "LIGHT ON";
+    const char CMD_LIGHT_OFF[] = "LIGHT OFF";
+    const char CMD_FAN_ON[] = "FAN ON";
+    const char CMD_FAN_OFF[] = "FAN OFF";
+
+    if (payload_len == (sizeof(CMD_LIGHT_ON) - 1) &&
+        strncmp(received_payload, CMD_LIGHT_ON, payload_len) == 0)
     {
-        printf("LIGHT ON\n");
+        ESP_LOGI(TAG, "LIGHT ON");
+        // TODO: Implement action for LIGHT ON
     }
-    else if (strcmp(data, (char *)"LIGHT OFF\0") == 0)
+    else if (payload_len == (sizeof(CMD_LIGHT_OFF) - 1) &&
+             strncmp(received_payload, CMD_LIGHT_OFF, payload_len) == 0)
     {
-        printf("LIGHT OFF\n");
+        ESP_LOGI(TAG, "LIGHT OFF");
+        // TODO: Implement action for LIGHT OFF
     }
-    else if (strcmp(data, (char *)"FAN ON\0") == 0)
+    else if (payload_len == (sizeof(CMD_FAN_ON) - 1) &&
+             strncmp(received_payload, CMD_FAN_ON, payload_len) == 0)
     {
-        printf("FAN ON\n");
+        ESP_LOGI(TAG, "FAN ON");
+        // TODO: Implement action for FAN ON
     }
-    else if (strcmp(data, (char *)"FAN OFF\0") == 0)
+    else if (payload_len == (sizeof(CMD_FAN_OFF) - 1) &&
+             strncmp(received_payload, CMD_FAN_OFF, payload_len) == 0)
     {
-        printf("FAN OFF\n");
+        ESP_LOGI(TAG, "FAN OFF");
+        // TODO: Implement action for FAN OFF
     }
     else
     {
-        printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+        char temp_buffer[payload_len + 1];
+        memcpy(temp_buffer, received_payload, payload_len);
+        temp_buffer[payload_len] = '\0';
+
+        ESP_LOGI(TAG, "Unknown command from client: %s", temp_buffer);
     }
 
     return 0;
@@ -59,15 +77,9 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
     return 0;
 }
 
-static int device_name_read(uint16_t onn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
-    os_mbuf_append(ctxt->om, DEVICE_NAME, strlen(DEVICE_NAME));
-    return 0;
-}
-
 static int model_number_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    char *model_number = "Model Number";
+    char *model_number = "Miniature Town v1";
     os_mbuf_append(ctxt->om, model_number, strlen(model_number));
     return 0;
 }
@@ -84,7 +96,6 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x180A),
         .characteristics = (struct ble_gatt_chr_def[]){
-            {.uuid = BLE_UUID16_DECLARE(0x2A00), .flags = BLE_GATT_CHR_F_READ, .access_cb = device_name_read},
             {.uuid = BLE_UUID16_DECLARE(0x2A24), .flags = BLE_GATT_CHR_F_READ, .access_cb = model_number_read},
             {.uuid = BLE_UUID16_DECLARE(0x2A29), .flags = BLE_GATT_CHR_F_READ, .access_cb = manufacturer_read},
             {0}},

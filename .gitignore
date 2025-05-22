@@ -3,3 +3,5 @@ managed_components/**
 sdkconfig
 sdkconfig.old
 .vscode/settings.json
+.espidf.*.json
+*.svd
