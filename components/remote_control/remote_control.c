@@ -14,6 +14,8 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "sdkconfig.h"
 
+#include "led_matrix.h"
+
 #include "include/device_service.h"
 #include "include/led_service.h"
 
@@ -137,4 +139,6 @@ void ble_init(void *args)
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
 
     nimble_port_freertos_init(host_task); // Run the host task
+
+    xTaskCreatePinnedToCore(led_matrix_init, "led_matrix", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL, 1);
 }

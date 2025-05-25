@@ -7,15 +7,7 @@
 
 typedef struct
 {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-} led_data_t;
-
-typedef struct
-{
     led_strip_handle_t led_strip;
-    led_data_t *data;
     uint32_t size;
 } led_matrix_t;
 
@@ -24,7 +16,6 @@ led_matrix_t led_matrix;
 static void led_strip_init(uint8_t gpio_pin, uint32_t size)
 {
     led_matrix.size = size;
-    led_matrix.data = (led_data_t *)malloc(sizeof(led_data_t) * size);
 
     led_strip_config_t strip_config = {
         .strip_gpio_num = gpio_pin,
@@ -46,6 +37,16 @@ static void led_strip_init(uint8_t gpio_pin, uint32_t size)
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_matrix.led_strip));
 }
 
+uint32_t led_matrix_get_size()
+{
+    return led_matrix.size;
+}
+
+void led_matrix_set_pixel(uint32_t index, uint8_t red, uint8_t green, uint8_t blue)
+{
+    led_strip_set_pixel(led_matrix.led_strip, index, red, green, blue);
+}
+
 void led_matrix_init(void *args)
 {
     ESP_LOGI(pcTaskGetName(NULL), "Calling led_matrix_init()");
@@ -54,16 +55,14 @@ void led_matrix_init(void *args)
     int value = 0;
     for (int i = 0; i < led_matrix.size; i++)
     {
-        led_strip_set_pixel(led_matrix.led_strip, i, value, 0, 0);
+        led_matrix_set_pixel(i, 0, value, 0);
     }
-    led_strip_refresh(led_matrix.led_strip);
 
     while (true)
     {
+        led_strip_refresh(led_matrix.led_strip);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-
-    free(led_matrix.data);
 
     ESP_LOGI(pcTaskGetName(NULL), "Exiting led_matrix_init()");
     vTaskDelete(NULL);

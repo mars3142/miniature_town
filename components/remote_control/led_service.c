@@ -1,5 +1,7 @@
 #include "include/led_service.h"
 
+#include "led_matrix.h"
+
 static const char *TAG = "led_service";
 
 // Write data to ESP32 defined as server
@@ -18,13 +20,19 @@ int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_
         strncmp(received_payload, CMD_LIGHT_ON, payload_len) == 0)
     {
         ESP_LOGI(TAG, "LIGHT ON");
-        // TODO: Implement action for LIGHT ON
+        for (int i = 0; i < led_matrix_get_size(); i++)
+        {
+            led_matrix_set_pixel(i, 10, 10, 0);
+        }
     }
     else if (payload_len == (sizeof(CMD_LIGHT_OFF) - 1) &&
              strncmp(received_payload, CMD_LIGHT_OFF, payload_len) == 0)
     {
         ESP_LOGI(TAG, "LIGHT OFF");
-        // TODO: Implement action for LIGHT OFF
+        for (int i = 0; i < led_matrix_get_size(); i++)
+        {
+            led_matrix_set_pixel(i, 0, 0, 0);
+        }
     }
     else if (payload_len == (sizeof(CMD_FAN_ON) - 1) &&
              strncmp(received_payload, CMD_FAN_ON, payload_len) == 0)
