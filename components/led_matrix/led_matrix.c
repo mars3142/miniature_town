@@ -1,8 +1,8 @@
 #include "led_matrix.h"
 
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "led_strip.h"
-#include "esp_log.h"
 #include "sdkconfig.h"
 
 typedef struct
@@ -17,22 +17,20 @@ static void led_strip_init(uint8_t gpio_pin, uint32_t size)
 {
     led_matrix.size = size;
 
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = gpio_pin,
-        .max_leds = size,
-        .led_model = LED_MODEL_WS2812,
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_RGB,
-        .flags = {
-            .invert_out = false,
-        }};
+    led_strip_config_t strip_config = {.strip_gpio_num = gpio_pin,
+                                       .max_leds = size,
+                                       .led_model = LED_MODEL_WS2812,
+                                       .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_RGB,
+                                       .flags = {
+                                           .invert_out = false,
+                                       }};
 
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz = 0,
-        .mem_block_symbols = 0,
-        .flags = {
-            .with_dma = true,
-        }};
+    led_strip_rmt_config_t rmt_config = {.clk_src = RMT_CLK_SRC_DEFAULT,
+                                         .resolution_hz = 0,
+                                         .mem_block_symbols = 0,
+                                         .flags = {
+                                             .with_dma = true,
+                                         }};
 
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_matrix.led_strip));
 }

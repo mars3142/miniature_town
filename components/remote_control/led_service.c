@@ -4,6 +4,14 @@
 
 static const char *TAG = "led_service";
 
+/// Capabilities of Device
+int ls_capabilities_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char *data = "To be implemented later";
+    os_mbuf_append(ctxt->om, data, strlen(data));
+    return 0;
+}
+
 // Write data to ESP32 defined as server
 int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -16,8 +24,7 @@ int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_
     const char CMD_FAN_ON[] = "FAN ON";
     const char CMD_FAN_OFF[] = "FAN OFF";
 
-    if (payload_len == (sizeof(CMD_LIGHT_ON) - 1) &&
-        strncmp(received_payload, CMD_LIGHT_ON, payload_len) == 0)
+    if (payload_len == (sizeof(CMD_LIGHT_ON) - 1) && strncmp(received_payload, CMD_LIGHT_ON, payload_len) == 0)
     {
         ESP_LOGI(TAG, "LIGHT ON");
         for (int i = 0; i < led_matrix_get_size(); i++)
@@ -25,8 +32,7 @@ int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_
             led_matrix_set_pixel(i, 10, 10, 0);
         }
     }
-    else if (payload_len == (sizeof(CMD_LIGHT_OFF) - 1) &&
-             strncmp(received_payload, CMD_LIGHT_OFF, payload_len) == 0)
+    else if (payload_len == (sizeof(CMD_LIGHT_OFF) - 1) && strncmp(received_payload, CMD_LIGHT_OFF, payload_len) == 0)
     {
         ESP_LOGI(TAG, "LIGHT OFF");
         for (int i = 0; i < led_matrix_get_size(); i++)
@@ -34,14 +40,12 @@ int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_
             led_matrix_set_pixel(i, 0, 0, 0);
         }
     }
-    else if (payload_len == (sizeof(CMD_FAN_ON) - 1) &&
-             strncmp(received_payload, CMD_FAN_ON, payload_len) == 0)
+    else if (payload_len == (sizeof(CMD_FAN_ON) - 1) && strncmp(received_payload, CMD_FAN_ON, payload_len) == 0)
     {
         ESP_LOGI(TAG, "FAN ON");
         // TODO: Implement action for FAN ON
     }
-    else if (payload_len == (sizeof(CMD_FAN_OFF) - 1) &&
-             strncmp(received_payload, CMD_FAN_OFF, payload_len) == 0)
+    else if (payload_len == (sizeof(CMD_FAN_OFF) - 1) && strncmp(received_payload, CMD_FAN_OFF, payload_len) == 0)
     {
         ESP_LOGI(TAG, "FAN OFF");
         // TODO: Implement action for FAN OFF
@@ -58,10 +62,18 @@ int ls_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_
     return 0;
 }
 
-// Read data from ESP32 defined as server
-int ls_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+int ls_char_a000_user_desc_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt,
+                                void *arg)
 {
-    char *data = "Data from the server";
-    os_mbuf_append(ctxt->om, data, strlen(data));
+    const char *desc = "Capabilities of Device";
+    os_mbuf_append(ctxt->om, desc, strlen(desc));
+    return 0;
+}
+
+int ls_char_dead_user_desc_read(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt,
+                                void *arg)
+{
+    const char *desc = "Readable Data from Server";
+    os_mbuf_append(ctxt->om, desc, strlen(desc));
     return 0;
 }
