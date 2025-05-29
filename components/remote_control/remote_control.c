@@ -3,7 +3,6 @@
 
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_nimble_hci.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -171,7 +170,7 @@ void host_task(void *param)
                        // is executed
 }
 
-void ble_init(void *args)
+void ble_init(void)
 {
     nimble_port_init();
     ble_svc_gap_device_name_set("Miniature Town");
