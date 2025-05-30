@@ -1,0 +1,47 @@
+{
+    "module": "Miniature Town",
+    "capabilities": [
+        {
+            "id": 0,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 1,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 2,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 3,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 4,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 5,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        },
+        {
+            "id": 6,
+            "type": "toggle",
+            "default": "0",
+            "label": "L8"
+        }
+    ]
+}

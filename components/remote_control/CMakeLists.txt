@@ -7,5 +7,6 @@ idf_component_register(SRCS
                     PRIV_REQUIRES
                         bt
                         esp_app_format
+                        storage
                         led_matrix
 )
