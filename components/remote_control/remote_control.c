@@ -28,6 +28,9 @@ static const ble_uuid16_t led_service_uuid = BLE_UUID16_INIT(0x1007);
 
 uint8_t ble_addr_type;
 
+// Handle for the capability characteristic value
+static uint16_t g_capa_char_val_handle;
+
 static void ble_app_advertise(void);
 
 static struct ble_gatt_dsc_def char_0xA000_descs[] = {{
@@ -69,6 +72,7 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
                                                            .uuid = BLE_UUID16_DECLARE(0x1979),
                                                            .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
                                                            .access_cb = capa_read,
+                                                           .val_handle = &g_capa_char_val_handle,
                                                            .descriptors = char_0x1979_desc,
                                                        },
                                                        {0}},
@@ -116,6 +120,32 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
         ESP_LOGI(TAG, "BLE GAP EVENT ADV COMPLETE");
         // Re-advertise to continue accepting new clients
         ble_app_advertise();
+        break;
+
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        ESP_LOGI(TAG,
+                 "BLE GAP EVENT SUBSCRIBE conn_handle=%d attr_handle=%d reason=%d "
+                 "prev_notify=%d cur_notify=%d prev_indicate=%d cur_indicate=%d",
+                 event->subscribe.conn_handle, event->subscribe.attr_handle, event->subscribe.reason,
+                 event->subscribe.prev_notify, event->subscribe.cur_notify, event->subscribe.prev_indicate,
+                 event->subscribe.cur_indicate);
+
+        // Check if subscription is for the capability characteristic's CCCD.
+        // The CCCD handle is typically the characteristic value handle + 1.
+        // g_capa_char_val_handle stores the handle of the characteristic value itself.
+        if (event->subscribe.attr_handle == g_capa_char_val_handle + 1)
+        {
+            if (event->subscribe.cur_notify)
+            {
+                ESP_LOGI(TAG, "Client subscribed to capability notifications. Sending data...");
+                // Call the function to send capability data via notifications
+                capa_notify_data(event->subscribe.conn_handle, g_capa_char_val_handle);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Client unsubscribed from capability notifications.");
+            }
+        }
         break;
 
     default:
